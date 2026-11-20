@@ -1,1 +1,248 @@
 
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VAHAN MITRA QR Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 20px 12px;
+      background: #f1f5f9;
+      font-family: Arial, sans-serif;
+      color: #1e293b;
+    }
+
+    .card {
+      max-width: 520px;
+      margin: auto;
+      padding: 22px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 18px #0001;
+      text-align: center;
+    }
+
+    h1 { color: #166534; }
+
+    #reader {
+      width: 100%;
+      margin-top: 18px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 15px;
+      border: 0;
+      border-radius: 9px;
+      background: #0369a1;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: .6; }
+
+    #message {
+      margin-top: 18px;
+      font-weight: bold;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .note {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <h1>VAHAN MITRA</h1>
+  <p>आपका वाहन, आपका साथी</p>
+  <hr>
+
+  <h3>Unique QR Sticker Scanner</h3>
+
+  <p class="note">
+    कैमरे को वाहन के QR Sticker की तरफ रखें।
+    QR स्कैन होने पर परिणाम Registration Form में वापस जाएगा।
+  </p>
+
+  <div id="reader"></div>
+
+  <button id="startBtn" onclick="startScanner()">
+    कैमरा शुरू करें
+  </button>
+
+  <button onclick="closeScanner()" style="background:#dc2626">
+    Scanner बंद करें
+  </button>
+
+  <div id="message">
+    कैमरा शुरू करने के लिए बटन दबाएँ।
+  </div>
+
+</div>
+
+<script>
+
+let scanner = null;
+let starting = false;
+let scanned = false;
+
+function showMessage(message, color) {
+  const box = document.getElementById("message");
+  box.textContent = message;
+  box.style.color = color || "#334155";
+}
+
+async function startScanner() {
+
+  if (starting || scanner) return;
+
+  if (typeof Html5Qrcode === "undefined") {
+    showMessage(
+      "QR Scanner Library लोड नहीं हुई। इंटरनेट जाँचें।",
+      "red"
+    );
+    return;
+  }
+
+  starting = true;
+  document.getElementById("startBtn").disabled = true;
+
+  try {
+
+    const cameras = await Html5Qrcode.getCameras();
+
+    if (!cameras || cameras.length === 0) {
+      throw new Error("कोई कैमरा उपलब्ध नहीं मिला।");
+    }
+
+    let selectedCamera = cameras[0];
+
+    const backCamera = cameras.find(camera =>
+      /back|rear|environment/i.test(camera.label)
+    );
+
+    if (backCamera) selectedCamera = backCamera;
+
+    scanner = new Html5Qrcode("reader");
+
+    await scanner.start(
+      selectedCamera.id,
+      {
+        fps: 10,
+        qrbox: { width: 230, height: 230 },
+        aspectRatio: 1
+      },
+      async function(decodedText) {
+
+        if (scanned) return;
+        scanned = true;
+
+        showMessage(
+          "QR स्कैन सफल! परिणाम वापस भेजा जा रहा है...",
+          "green"
+        );
+
+        try {
+          await scanner.stop();
+          scanner.clear();
+        } catch (e) {}
+
+        scanner = null;
+
+        if (window.opener && !window.opener.closed) {
+
+          window.opener.postMessage({
+            type: "VAHAN_MITRA_QR_SCANNED",
+            decodedText: decodedText
+          }, "*");
+
+          showMessage(
+            "QR सफलतापूर्वक Registration Form को भेज दिया गया।",
+            "green"
+          );
+
+          setTimeout(function() {
+            window.close();
+          }, 1200);
+
+        } else {
+
+          showMessage(
+            "QR मिला: " + decodedText +
+            "। Registration Form से Scanner खोलें।",
+            "green"
+          );
+
+        }
+
+      },
+      function() {
+        // सामान्य स्कैनिंग त्रुटियों को अनदेखा करें
+      }
+    );
+
+    showMessage("कैमरा चालू है। QR Sticker स्कैन करें।", "green");
+
+  } catch (error) {
+
+    scanner = null;
+
+    showMessage(
+      "कैमरा शुरू नहीं हुआ: " +
+      (error.message || String(error)),
+      "red"
+    );
+
+    document.getElementById("startBtn").disabled = false;
+
+  } finally {
+
+    starting = false;
+
+  }
+}
+
+async function closeScanner() {
+
+  try {
+    if (scanner && scanner.isScanning) {
+      await scanner.stop();
+      scanner.clear();
+    }
+  } catch (e) {}
+
+  scanner = null;
+  window.close();
+
+  showMessage("Scanner बंद कर सकते हैं।");
+
+}
+
+window.addEventListener("beforeunload", function() {
+  if (scanner && scanner.isScanning) {
+    scanner.stop().catch(function() {});
+  }
+});
+
+</script>
+
+</body>
+</html>
+
