@@ -67,7 +67,6 @@
 </head>
 
 <body>
-
 <div class="card">
 
   <h1>VAHAN MITRA</h1>
@@ -98,7 +97,6 @@
 </div>
 
 <script>
-
 let scanner = null;
 let starting = false;
 let scanned = false;
@@ -109,15 +107,32 @@ function showMessage(message, color) {
   box.style.color = color || "#334155";
 }
 
-async function startScanner() {
+function getTrustedTargetOrigin() {
+  try {
+    if (!document.referrer) return null;
 
+    const referrerUrl = new URL(document.referrer);
+    const host = referrerUrl.hostname;
+
+    const trustedHost =
+      host === "script.google.com" ||
+      host.endsWith(".googleusercontent.com");
+
+    if (referrerUrl.protocol !== "https:" || !trustedHost) {
+      return null;
+    }
+
+    return referrerUrl.origin;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function startScanner() {
   if (starting || scanner) return;
 
   if (typeof Html5Qrcode === "undefined") {
-    showMessage(
-      "QR Scanner Library लोड नहीं हुई। इंटरनेट जाँचें।",
-      "red"
-    );
+    showMessage("QR Scanner Library लोड नहीं हुई। इंटरनेट जाँचें।", "red");
     return;
   }
 
@@ -125,7 +140,6 @@ async function startScanner() {
   document.getElementById("startBtn").disabled = true;
 
   try {
-
     const cameras = await Html5Qrcode.getCameras();
 
     if (!cameras || cameras.length === 0) {
@@ -150,14 +164,10 @@ async function startScanner() {
         aspectRatio: 1
       },
       async function(decodedText) {
-
         if (scanned) return;
         scanned = true;
 
-        showMessage(
-          "QR स्कैन सफल! परिणाम वापस भेजा जा रहा है...",
-          "green"
-        );
+        showMessage("QR स्कैन सफल! परिणाम भेजा जा रहा है...", "green");
 
         try {
           await scanner.stop();
@@ -166,32 +176,38 @@ async function startScanner() {
 
         scanner = null;
 
-        if (window.opener && !window.opener.closed) {
+        const targetOrigin = getTrustedTargetOrigin();
 
-          window.opener.postMessage({
-            type: "VAHAN_MITRA_QR_SCANNED",
-            decodedText: decodedText
-          }, "*");
+        if (window.opener && !window.opener.closed && targetOrigin) {
+          try {
+            window.opener.postMessage({
+              type: "VAHAN_MITRA_QR_SCANNED",
+              decodedText: decodedText
+            }, targetOrigin);
 
-          showMessage(
-            "QR सफलतापूर्वक Registration Form को भेज दिया गया।",
-            "green"
-          );
+            showMessage(
+              "QR परिणाम Registration Form को भेज दिया गया।",
+              "green"
+            );
 
-          setTimeout(function() {
-            window.close();
-          }, 1200);
+            setTimeout(function() {
+              window.close();
+            }, 1200);
+
+          } catch (error) {
+            showMessage(
+              "QR मिला, लेकिन Registration Form से संपर्क नहीं हो पाया।",
+              "red"
+            );
+          }
 
         } else {
-
           showMessage(
             "QR मिला: " + decodedText +
-            "। Registration Form से Scanner खोलें।",
+            "। Registration Form से Scanner खोलकर दोबारा प्रयास करें।",
             "green"
           );
-
         }
-
       },
       function() {
         // सामान्य स्कैनिंग त्रुटियों को अनदेखा करें
@@ -201,7 +217,6 @@ async function startScanner() {
     showMessage("कैमरा चालू है। QR Sticker स्कैन करें।", "green");
 
   } catch (error) {
-
     scanner = null;
 
     showMessage(
@@ -213,14 +228,11 @@ async function startScanner() {
     document.getElementById("startBtn").disabled = false;
 
   } finally {
-
     starting = false;
-
   }
 }
 
 async function closeScanner() {
-
   try {
     if (scanner && scanner.isScanning) {
       await scanner.stop();
@@ -232,7 +244,6 @@ async function closeScanner() {
   window.close();
 
   showMessage("Scanner बंद कर सकते हैं।");
-
 }
 
 window.addEventListener("beforeunload", function() {
@@ -240,9 +251,7 @@ window.addEventListener("beforeunload", function() {
     scanner.stop().catch(function() {});
   }
 });
-
 </script>
 
 </body>
 </html>
-
